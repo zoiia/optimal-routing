@@ -1,5 +1,5 @@
 """Navigator"""
-
+import os
 from dotenv import load_dotenv
 from typing import Dict, Any
 
@@ -15,6 +15,16 @@ from app.ports import find_port
 load_dotenv()
 
 # --- Tools ---
+try:
+    import streamlit as st
+    # When running under Streamlit, copy secrets into os.environ so any
+    # library that reads from env vars (Tavily, Anthropic SDK, etc.) works.
+    for key in ("TAVILY_API_KEY", "ANTHROPIC_API_KEY"):
+        if key in st.secrets and key not in os.environ:
+            os.environ[key] = st.secrets[key]
+except (ImportError, FileNotFoundError):
+    # Not running under Streamlit, or no secrets file — .env will do.
+    pass
 
 tavily_client = TavilyClient()
 
@@ -22,7 +32,14 @@ tavily_client = TavilyClient()
 @tool
 def web_search(query: str) -> Dict[str, Any]:
     """Search the web for information."""
-    return tavily_client.search(query)
+    try:
+        return tavily_client.search(query)
+    except Exception as e:
+        return {
+            "error": f"Web search unavailable: {type(e).__name__}",
+            "detail": str(e)[:300],
+            "results": [],
+        }
 
 from geopy.distance import great_circle
 from app.ports import find_port
